@@ -72,4 +72,4 @@ spec:
   tls:
   - hosts:
     - api.staging.ogeraldoluiz.com
-    secretName: tls-cert-staging
+    secretName: tls-cert-api-staging
