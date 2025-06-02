@@ -1,0 +1,65 @@
+name: CI/CD Pipeline
+run-name: Pipeline CI/CD executed by ${{ github.actor }} in ${{ github.run_number }}
+
+on:
+  workflow_call:
+    inputs:
+      environment-name:
+        description: 'Environment name'
+        required: true
+        type: string
+      environment-url:
+        description: 'Environment URL'
+        required: true
+        type: string
+      K8S_NAMESPACE:
+        description: 'Kubernetes Namespace'
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    name: Deploy in Kubernetes
+    runs-on: ubuntu-latest
+
+    # Environment Variables
+    environment:
+      name: ${{ inputs.environment-name }}
+      url: ${{ inputs.environment-url }}
+
+    steps:
+      # Checkout Repository
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+        # Set Context
+      - name: Apply Kubernetes Context
+        uses: azure/k8s-set-context@v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_KUBECONFIG }}
+
+      - name: Update Deployment
+        run: |
+          # Find the appropriate environment file based on input
+          ENV_FILE="k8s/${{ inputs.environment-name }}-k8s.yaml"
+
+          # Update namespace in all relevant files
+          sed -i 's|namespace: development|namespace: ${{ inputs.K8S_NAMESPACE }}|g' $ENV_FILE
+
+          # Update host in ingress files
+          sed -i 's|host: api.development.ogeraldoluiz.com|host: ${{ inputs.environment-url }}|g' $ENV_FILE
+
+      - name: Create Namespace if Not Exists
+        run: |
+          kubectl get namespace ${{ inputs.K8S_NAMESPACE }} || kubectl create namespace ${{ inputs.K8S_NAMESPACE }}
+
+      # Deploy to Kubernetes
+      - name: Deploy to Kubernetes
+        uses: azure/k8s-deploy@v5
+        with:
+          namespace: ${{ inputs.K8S_NAMESPACE }}
+          manifests: |
+            k8s/${{ inputs.environment-name }}-k8s.yaml
+
+          images: geraldobl58/api:v${{ github.run_number }}

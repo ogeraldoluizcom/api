@@ -1,0 +1,228 @@
+name: CI/CD Pipeline
+run-name: Pipeline CI/CD executed by ${{ github.actor }} in ${{ github.run_number }}
+
+on:
+  push:
+    branches:
+      - develop
+      - release/**
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # Continuous Integration (CI)
+  CI:
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout the repository
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Setup Node.js environment
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # Cache Node.js dependencies
+      - name: Cache Node Modules
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      # Install dependencies
+      - name: Install dependencies
+        run: npm install
+
+      # Build the application
+      - name: Build
+        run: npm run build
+
+      # Run linting
+      - name: Linting
+        run: npm run lint
+
+  # Test
+  Tests:
+    needs: [CI]
+    uses: ./.github/workflows/test.yml
+    secrets: inherit
+
+  # Continuous Deployment (CD)
+  CD:
+    needs: [Tests]
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout the repository
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      # Setup DockerHub credentials
+      - name: Setup Dockerhub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Build and push Docker image
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./
+          file: ./Dockerfile
+          push: true
+          tags: |
+            geraldobl58/api:v${{ github.run_number }}
+            geraldobl58/api:latest
+
+  # Deploy
+  deploy-development:
+    if: github.ref == 'refs/heads/develop'
+    needs: [CD]
+    uses: ./.github/workflows/deploy.yml
+    secrets: inherit
+    with:
+      environment-name: development
+      environment-url: api.development.ogeraldoluiz.com
+      K8S_NAMESPACE: development
+
+  deploy-staging:
+    if: startsWith(github.ref, 'refs/heads/release/')
+    needs: [CD]
+    uses: ./.github/workflows/deploy.yml
+    secrets: inherit
+    with:
+      environment-name: staging
+      environment-url: api.staging.ogeraldoluiz.com
+      K8S_NAMESPACE: staging
+
+  deploy-production:
+    if: github.ref == 'refs/heads/main'
+    needs: [CD]
+    uses: ./.github/workflows/deploy.yml
+    secrets: inherit
+    with:
+      environment-name: production
+      environment-url: api.ogeraldoluiz.com
+      K8S_NAMESPACE: production
+
+  create-release:
+    needs: [deploy-staging]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/heads/release/')
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Get version and branch name
+        id: get_version
+        run: |
+          echo "VERSION=${GITHUB_REF#refs/heads/release/}" >> $GITHUB_ENV
+          echo "BRANCH_NAME=${GITHUB_REF#refs/heads/}" >> $GITHUB_ENV
+
+      - name: Check if tag already exists
+        id: check_tag
+        run: |
+          if git ls-remote --tags origin | grep -q "refs/tags/${VERSION}$"; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create GitHub Release
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: actions/create-release@v1
+        with:
+          tag_name: ${{ env.VERSION }}
+          release_name: 'Release ${{ env.VERSION }}'
+          body: |
+            ## Release Notes
+            - Deploy realizado com sucesso para o ambiente de produção.
+            - Commit: ${{ github.event.head_commit.message }}
+            - Autor: ${{ github.actor }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Notify Discord
+  notify-discord:
+    needs: [deploy-production, deploy-development, deploy-staging]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Notify Discord
+        run: |
+          ENV=""
+          COLOR=""
+          if [ "${GITHUB_REF}" == "refs/heads/develop" ]; then
+            ENV="development"
+            COLOR="3447003"  # Azul
+          elif [[ "${GITHUB_REF}" == refs/heads/release/* ]]; then
+            ENV="staging"
+            COLOR="15105570"  # Roxo
+          elif [ "${GITHUB_REF}" == "refs/heads/main" ]; then
+            ENV="production"
+            COLOR="3066993"  # Verde
+          fi
+
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -d @- ${{ secrets.DISCORD_WEBHOOK_URL }} <<EOF
+          {
+            "embeds": [{
+              "title": "🚀 Novo Deploy Realizado",
+              "color": $COLOR,
+              "fields": [
+                {
+                  "name": "👤 Autor",
+                  "value": "${{ github.actor }}",
+                  "inline": true
+                },
+                {
+                  "name": "✉️ Email",
+                  "value": "${{ github.event.head_commit.author.email }}",
+                  "inline": true
+                },
+                {
+                  "name": "📦 Repositório",
+                  "value": "${{ github.repository }}",
+                  "inline": true
+                },
+                {
+                  "name": "🔀 Branch",
+                  "value": "${{ github.ref_name }}",
+                  "inline": true
+                },
+                {
+                  "name": "💬 Mensagem do Commit",
+                  "value": "${{ github.event.head_commit.message }}",
+                  "inline": false
+                },
+                {
+                  "name": "📄 Commit",
+                  "value": "${{ github.sha }}",
+                  "inline": true
+                },
+                {
+                  "name": "📅 Data",
+                  "value": "${{ github.event.head_commit.timestamp }}",
+                  "inline": true
+                },
+                {
+                  "name": "🚀 Ambiente",
+                  "value": "$ENV",
+                  "inline": true
+                }
+              ],
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            }]
+          }
+          EOF
