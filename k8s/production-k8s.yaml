@@ -73,4 +73,4 @@ spec:
   tls:
   - hosts:
     - api.ogeraldoluiz.com
-    secretName: tls-cert-production
+    secretName: tls-cert-api-production
