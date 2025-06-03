@@ -1,12 +1,29 @@
 import { APP_GUARD } from '@nestjs/core';
 import { Module } from '@nestjs/common';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { LoggerModule } from 'nestjs-pino';
 
 import { CustomThrottlerGuard } from './guards/custom-throttler/custom-throttler.guard';
 import { HealthModule } from './health/health.module';
+import { MailerModule } from './mailer/mailer.module';
+import { EmailController } from './email/email.controller';
 
 @Module({
   imports: [
+    LoggerModule.forRoot({
+      pinoHttp: {
+        transport: {
+          target: 'pino-pretty',
+          options: {
+            colorize: true,
+            translateTime: 'yyyy-mm-dd HH:MM:ss',
+            ignore: 'pid,hostname',
+            singleLine: true,
+          },
+        },
+        level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
+      },
+    }),
     ThrottlerModule.forRoot({
       throttlers: [
         {
@@ -16,8 +33,9 @@ import { HealthModule } from './health/health.module';
       ],
     }),
     HealthModule,
+    MailerModule,
   ],
-  controllers: [],
+  controllers: [EmailController],
   providers: [
     {
       provide: APP_GUARD,
