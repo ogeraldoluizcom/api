@@ -19,7 +19,7 @@ describe('HealthController', () => {
   it('should return health status', () => {
     const result = controller.checkHealth();
     expect(result).toEqual({
-      status: 'Server is running - Test',
+      status: 'Server is running',
       timestamp: expect.any(String), // Verifica se o timestamp é uma string
     });
   });
