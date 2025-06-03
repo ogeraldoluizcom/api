@@ -5,7 +5,7 @@ export class HealthController {
   @Get()
   checkHealth() {
     return {
-      status: 'Server is running',
+      status: 'Server is running - Test',
       timestamp: new Date().toISOString(),
     };
   }
