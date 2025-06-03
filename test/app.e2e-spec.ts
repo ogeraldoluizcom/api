@@ -4,6 +4,7 @@ import { MailerService } from '@nestjs-modules/mailer';
 import * as request from 'supertest';
 
 import { AppModule } from './../src/app.module';
+import { mailerServiceMock } from './mocks/mailer.service.mock';
 
 describe('AppController (e2e)', () => {
   let app: INestApplication;
@@ -58,5 +59,13 @@ describe('AppController (e2e)', () => {
       message: 'Email sent successfully',
       status: 201,
     });
+
+    expect(mailerServiceMock.sendMail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'test@example.com',
+        subject: 'Test Subject',
+        html: expect.any(String),
+      }),
+    );
   });
 });
