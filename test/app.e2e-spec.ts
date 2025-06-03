@@ -12,7 +12,10 @@ describe('AppController (e2e)', () => {
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(MailerService) // <- injeta o mock
+      .useValue(mailerServiceMock)
+      .compile();
 
     app = moduleFixture.createNestApplication();
     await app.init();
@@ -64,7 +67,9 @@ describe('AppController (e2e)', () => {
       expect.objectContaining({
         to: 'test@example.com',
         subject: 'Test Subject',
-        html: expect.any(String),
+        from: '"Test User" <janedoe@email.com>',
+        text: 'Test email body',
+        html: expect.any(String), // o conteúdo exato pode ser complexo, só validamos que é uma string
       }),
     );
   });
