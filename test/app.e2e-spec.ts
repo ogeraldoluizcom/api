@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { HttpStatus, INestApplication } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import * as request from 'supertest';
 
 import { AppModule } from './../src/app.module';
@@ -40,11 +40,11 @@ describe('AppController (e2e)', () => {
     const response = await request(app.getHttpServer())
       .post('/email')
       .send(emailPayload)
-      .expect(HttpStatus.CREATED);
+      .expect(201);
 
     expect(response.body).toEqual({
       message: 'Email sent successfully',
-      status: HttpStatus.CREATED,
+      status: 201,
     });
   });
 });
