@@ -21,7 +21,7 @@ describe('AppController (e2e)', () => {
       .expect(200)
       .expect((res) => {
         expect(res.body).toEqual({
-          status: 'Server is running - Test',
+          status: 'Server is running',
           timestamp: expect.any(String), // Verifica se o timestamp é uma string
         });
       });
