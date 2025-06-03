@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication } from '@nestjs/common';
+import { HttpStatus, INestApplication } from '@nestjs/common';
 import * as request from 'supertest';
+
 import { AppModule } from './../src/app.module';
 
 describe('AppController (e2e)', () => {
@@ -25,5 +26,25 @@ describe('AppController (e2e)', () => {
           timestamp: expect.any(String), // Verifica se o timestamp é uma string
         });
       });
+  });
+
+  it('/email (POST)', async () => {
+    const emailPayload = {
+      name: 'Test User',
+      from: 'janedoe@email.com',
+      to: 'test@example.com',
+      subject: 'Test Subject',
+      message: 'Test email body',
+    };
+
+    const response = await request(app.getHttpServer())
+      .post('/email')
+      .send(emailPayload)
+      .expect(HttpStatus.CREATED);
+
+    expect(response.body).toEqual({
+      message: 'Email sent successfully',
+      status: HttpStatus.CREATED,
+    });
   });
 });
