@@ -64,7 +64,41 @@ jobs:
 
           images: geraldobl58/api:v${{ github.run_number }}
 
-      - name: Run Prisma Migrations in Pod
+      # - name: Run Prisma Migrations in Pod
+      #   run: |
+      #     POD_NAME=$(kubectl get pods -n ${{ inputs.K8S_NAMESPACE }} -l app=api -o jsonpath="{.items[0].metadata.name}")
+      #     kubectl exec -n ${{ inputs.K8S_NAMESPACE }} $POD_NAME -- npx prisma migrate deploy
+
+      - name: Run Prisma Migrations
         run: |
+          # 1. Verifica se o pod está disponível
+          echo "Verificando pods disponíveis..."
+          kubectl get pods -n ${{ inputs.K8S_NAMESPACE }} -l app=api
+
+          # 2. Aguarda o pod ficar pronto (com timeout de 5 minutos)
+          echo "Aguardando o pod ficar pronto..."
+          kubectl wait --namespace ${{ inputs.K8S_NAMESPACE }} \
+            --for=condition=ready pod \
+            --selector=app=api \
+            --timeout=300s
+
+          # 3. Obtém o nome do pod principal
           POD_NAME=$(kubectl get pods -n ${{ inputs.K8S_NAMESPACE }} -l app=api -o jsonpath="{.items[0].metadata.name}")
-          kubectl exec -n ${{ inputs.K8S_NAMESPACE }} $POD_NAME -- npx prisma migrate deploy
+          echo "Pod encontrado: $POD_NAME"
+
+          # 4. Verifica os containers no pod
+          echo "Containers no pod:"
+          kubectl get pod -n ${{ inputs.K8S_NAMESPACE }} $POD_NAME -o jsonpath='{.spec.containers[*].name}' | xargs -n1
+
+          # 5. Executa as migrações com verificação de erro
+          echo "Executando migrações do Prisma..."
+          if ! kubectl exec -n ${{ inputs.K8S_NAMESPACE }} $POD_NAME \
+            -c api \
+            -- npx prisma migrate deploy; then
+            
+            echo "Falha nas migrações. Logs do pod:"
+            kubectl logs -n ${{ inputs.K8S_NAMESPACE }} $POD_NAME -c api
+            exit 1
+          fi
+
+          echo "Migrações executadas com sucesso!"
