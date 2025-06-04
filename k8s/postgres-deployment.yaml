@@ -28,8 +28,12 @@ spec:
   accessModes:
     - ReadWriteOnce
   resources:
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
     requests:
-      storage: 1Gi
+      memory: "512Mi"
+      cpu: "250m"
 
 ---
 

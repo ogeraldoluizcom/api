@@ -70,35 +70,23 @@ jobs:
       #     kubectl exec -n ${{ inputs.K8S_NAMESPACE }} $POD_NAME -- npx prisma migrate deploy
 
       - name: Run Prisma Migrations
+        timeout-minutes: 10
         run: |
-          # 1. Verifica se o pod está disponível
-          echo "Verificando pods disponíveis..."
-          kubectl get pods -n ${{ inputs.K8S_NAMESPACE }} -l app=api
+          # Seleciona especificamente o pod que está Running (não o com Error)
+          POD_NAME=$(kubectl get pods -n ${{ inputs.K8S_NAMESPACE }} -l app=api --field-selector=status.phase=Running -o jsonpath="{.items[0].metadata.name}")
+          echo "Pod selecionado para migração: $POD_NAME"
 
-          # 2. Aguarda o pod ficar pronto (com timeout de 5 minutos)
-          echo "Aguardando o pod ficar pronto..."
+          # Verifica se o container está realmente pronto
           kubectl wait --namespace ${{ inputs.K8S_NAMESPACE }} \
-            --for=condition=ready pod \
-            --selector=app=api \
+            pod/$POD_NAME \
+            --for=jsonpath='{.status.containerStatuses[?(@.name=="api")].ready}'=true \
             --timeout=300s
 
-          # 3. Obtém o nome do pod principal
-          POD_NAME=$(kubectl get pods -n ${{ inputs.K8S_NAMESPACE }} -l app=api -o jsonpath="{.items[0].metadata.name}")
-          echo "Pod encontrado: $POD_NAME"
+          # Executa migração com mais recursos
+          kubectl exec -n ${{ inputs.K8S_NAMESPACE }} $POD_NAME -c api -- \
+            sh -c "NODE_OPTIONS='--max-old-space-size=512' npx prisma migrate deploy"
 
-          # 4. Verifica os containers no pod
-          echo "Containers no pod:"
-          kubectl get pod -n ${{ inputs.K8S_NAMESPACE }} $POD_NAME -o jsonpath='{.spec.containers[*].name}' | xargs -n1
-
-          # 5. Executa as migrações com verificação de erro
-          echo "Executando migrações do Prisma..."
-          if ! kubectl exec -n ${{ inputs.K8S_NAMESPACE }} $POD_NAME \
-            -c api \
-            -- npx prisma migrate deploy; then
-            
-            echo "Falha nas migrações. Logs do pod:"
-            kubectl logs -n ${{ inputs.K8S_NAMESPACE }} $POD_NAME -c api
-            exit 1
-          fi
-
-          echo "Migrações executadas com sucesso!"
+          # Verificação pós-migração
+          echo "Status das migrações:"
+          kubectl exec -n ${{ inputs.K8S_NAMESPACE }} $POD_NAME -c api -- \
+            npx prisma migrate status
