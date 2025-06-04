@@ -5,8 +5,6 @@ import { LoggerModule } from 'nestjs-pino';
 
 import { CustomThrottlerGuard } from './guards/custom-throttler/custom-throttler.guard';
 import { HealthModule } from './health/health.module';
-import { MailerModule } from './mailer/mailer.module';
-import { EmailController } from './email/email.controller';
 
 @Module({
   imports: [
@@ -33,9 +31,8 @@ import { EmailController } from './email/email.controller';
       ],
     }),
     HealthModule,
-    MailerModule,
   ],
-  controllers: [EmailController],
+  controllers: [],
   providers: [
     {
       provide: APP_GUARD,
