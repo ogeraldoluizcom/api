@@ -4,9 +4,11 @@ FROM node:18 AS build
 WORKDIR /usr/src/app
 
 COPY package*.json ./
+COPY prisma ./prisma
 
-# Instala com base no package-lock.json (versões fixadas)
+# Instala dependências e gera o Prisma Client
 RUN npm ci
+RUN npx prisma generate
 
 COPY . .
 
@@ -22,6 +24,7 @@ WORKDIR /usr/src/app
 COPY --from=build /usr/src/app/package.json ./
 COPY --from=build /usr/src/app/dist ./dist
 COPY --from=build /usr/src/app/node_modules ./node_modules
+COPY --from=build /usr/src/app/prisma ./prisma
 
 EXPOSE 3000
 
