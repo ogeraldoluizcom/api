@@ -6,30 +6,13 @@ import { LoggerModule } from 'nestjs-pino';
 import { CustomThrottlerGuard } from './guards/custom-throttler/custom-throttler.guard';
 import { HealthModule } from './health/health.module';
 
+import { loggerConfig } from './utils/logger-config';
+import { throttlersConfig } from './utils/throttlers-config';
+
 @Module({
   imports: [
-    LoggerModule.forRoot({
-      pinoHttp: {
-        transport: {
-          target: 'pino-pretty',
-          options: {
-            colorize: true,
-            translateTime: 'yyyy-mm-dd HH:MM:ss',
-            ignore: 'pid,hostname',
-            singleLine: true,
-          },
-        },
-        level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
-      },
-    }),
-    ThrottlerModule.forRoot({
-      throttlers: [
-        {
-          ttl: 120000, // Tempo de vida em milissegundos (2 minutos)
-          limit: 10, // Máximo de 10 requisições por IP
-        },
-      ],
-    }),
+    LoggerModule.forRoot(loggerConfig),
+    ThrottlerModule.forRoot(throttlersConfig),
     HealthModule,
   ],
   controllers: [],
