@@ -75,5 +75,10 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
+  },
+  "prisma": {
+    "migrate": {
+      "memory": 1024
+    }
   }
 }
