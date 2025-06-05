@@ -72,77 +72,98 @@ jobs:
       - name: Run Database Migrations
         timeout-minutes: 15
         run: |
-          # Wait for postgres service to be available
-          echo "Waiting for postgres service to be ready..."
+          # Configurações iniciais
+          MIGRATION_POD_NAME="prisma-migrate-${{ github.run_number }}"
+          NAMESPACE="${{ inputs.K8S_NAMESPACE }}"
+          TIMEOUT_SECONDS=600  # 10 minutos
+          RETRY_INTERVAL=5
+
+          # 1. Verificação do serviço PostgreSQL
+          echo "⌛ Waiting for postgres service to be ready..."
           for i in {1..30}; do
-            if kubectl get svc -n ${{ inputs.K8S_NAMESPACE }} postgres-service &>/dev/null; then
-              echo "Postgres service found"
+            if kubectl get svc -n $NAMESPACE postgres-service &>/dev/null; then
+              echo "✅ Postgres service found"
               break
             fi
             if [ $i -eq 30 ]; then
-              echo "Postgres service not found after 30 attempts"
+              echo "❌ Postgres service not found after 30 attempts"
+              kubectl get svc -n $NAMESPACE
               exit 1
             fi
-            echo "Waiting for postgres service... attempt $i"
-            sleep 5
+            echo "⏳ Waiting for postgres service... attempt $i/30"
+            sleep $RETRY_INTERVAL
           done
 
-          # Test database connection with retries
-          echo "Testing database connection..."
-          for i in {1..5}; do
-            if kubectl run postgres-test --rm -i --restart=Never --image=postgres:14 \
+          # 2. Teste de conexão com o banco de dados
+          echo "🔌 Testing database connection..."
+          for i in {1..10}; do
+            if kubectl run db-connection-test --rm -i --restart=Never --image=postgres:14 \
               --env="PGPASSWORD=docker" \
-              --command -- psql -h postgres-service.${{ inputs.K8S_NAMESPACE }}.svc.cluster.local -U docker -d api -c "SELECT 1"; then
-              echo "Database connection successful"
+              --command -- psql -h postgres-service.$NAMESPACE.svc.cluster.local -U docker -d api -c "SELECT 1" &>/dev/null; then
+              echo "✅ Database connection successful"
               break
             fi
-            if [ $i -eq 5 ]; then
-              echo "Failed to connect to database after 5 attempts"
+            if [ $i -eq 10 ]; then
+              echo "❌ Failed to connect to database after 10 attempts"
+              kubectl get pods -n $NAMESPACE
+              kubectl describe svc -n $NAMESPACE postgres-service
               exit 1
             fi
-            echo "Connection attempt $i failed, retrying in 5 seconds..."
-            sleep 5
+            echo "⏳ Connection attempt $i/10 failed, retrying in $RETRY_INTERVAL seconds..."
+            sleep $RETRY_INTERVAL
           done
-          
-          kubectl apply -n ${{ inputs.K8S_NAMESPACE }} -f - <<EOF
-          apiVersion: v1
-          kind: Pod
+
+          # 3. Execução da migração
+          echo "🚀 Starting Prisma migration..."
+          kubectl apply -n $NAMESPACE -f - <<EOF
+          apiVersion: batch/v1
+          kind: Job
           metadata:
-            name: prisma-migrate-${{ github.run_number }}
+            name: $MIGRATION_POD_NAME
             labels:
               app: prisma-migrate
           spec:
-            containers:
-            - name: migrator
-              image: geraldobl58/api:v${{ github.run_number }}
-              command: ["sh", "-c"]
-              args: ["NODE_OPTIONS='--max-old-space-size=2048' npx prisma migrate deploy && npx prisma migrate status"]
-              env:
-                - name: DATABASE_URL
-                  valueFrom:
-                    secretKeyRef:
-                      name: db-credentials
-                      key: DATABASE_URL
-              resources:
-                limits:
-                  memory: "2Gi"
-                  cpu: "1"
-                requests:
-                  memory: "1.5Gi"
-                  cpu: "500m"
-            restartPolicy: Never
+            backoffLimit: 0  # Não tentar novamente em caso de falha
+            template:
+              spec:
+                containers:
+                - name: migrator
+                  image: geraldobl58/api:v${{ github.run_number }}
+                  command: ["sh", "-c"]
+                  args: ["NODE_OPTIONS='--max-old-space-size=2048' npx prisma migrate deploy && npx prisma migrate status"]
+                  env:
+                    - name: DATABASE_URL
+                      valueFrom:
+                        secretKeyRef:
+                          name: db-credentials
+                          key: DATABASE_URL
+                  resources:
+                    limits:
+                      memory: "2Gi"
+                      cpu: "1"
+                    requests:
+                      memory: "1.5Gi"
+                      cpu: "500m"
+                restartPolicy: Never
           EOF
 
-          # Aumentar timeout para 10 minutos (600s)
-          kubectl wait --for=condition=Succeeded -n ${{ inputs.K8S_NAMESPACE }} pod/prisma-migrate-${{ github.run_number }} --timeout=600s
-          
-          # Mostrar logs completos
-          kubectl logs -n ${{ inputs.K8S_NAMESPACE }} prisma-migrate-${{ github.run_number }} --tail=100
-          
-          if [[ "$(kubectl get pod -n ${{ inputs.K8S_NAMESPACE }} prisma-migrate-${{ github.run_number }} -o jsonpath='{.status.phase}')" != "Succeeded" ]]; then
-            echo "Migration failed"
-            kubectl describe pod -n ${{ inputs.K8S_NAMESPACE }} prisma-migrate-${{ github.run_number }}
+          # 4. Monitoramento da migração
+          echo "⏳ Waiting for migration to complete (timeout: $TIMEOUT_SECONDS seconds)..."
+          if ! kubectl wait --for=condition=complete -n $NAMESPACE job/$MIGRATION_POD_NAME --timeout=${TIMEOUT_SECONDS}s; then
+            echo "❌ Migration failed or timed out"
+            echo "📄 Migration logs:"
+            kubectl logs -n $NAMESPACE -l job-name=$MIGRATION_POD_NAME --tail=100
+            echo "🔍 Job details:"
+            kubectl describe job -n $NAMESPACE $MIGRATION_POD_NAME
+            echo "🐞 Pod details:"
+            kubectl describe pod -n $NAMESPACE -l job-name=$MIGRATION_POD_NAME
             exit 1
           fi
 
-          kubectl delete pod -n ${{ inputs.K8S_NAMESPACE }} prisma-migrate-${{ github.run_number }}
+          # 5. Verificação final e limpeza
+          echo "✅ Migration completed successfully"
+          echo "📄 Final migration logs:"
+          kubectl logs -n $NAMESPACE -l job-name=$MIGRATION_POD_NAME --tail=100
+          
+          # Limpeza do job
+          kubectl delete job -n $NAMESPACE $MIGRATION_POD_NAME
