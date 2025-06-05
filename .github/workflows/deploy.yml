@@ -72,6 +72,10 @@ jobs:
       - name: Run Database Migrations
         timeout-minutes: 15
         run: |
+          # Testar conexão com o banco de dados primeiro
+          kubectl run postgres-test --rm -i --restart=Never --image=postgres:14 --env="PGPASSWORD=docker" --command -- \
+            psql -h postgres-service -U docker -d api -c "SELECT 1" || exit 1
+          
           kubectl apply -n ${{ inputs.K8S_NAMESPACE }} -f - <<EOF
           apiVersion: v1
           kind: Pod
@@ -84,7 +88,7 @@ jobs:
             - name: migrator
               image: geraldobl58/api:v${{ github.run_number }}
               command: ["sh", "-c"]
-              args: ["NODE_OPTIONS='--max-old-space-size=1024' npx prisma migrate deploy && npx prisma migrate status"]
+              args: ["NODE_OPTIONS='--max-old-space-size=2048' npx prisma migrate deploy && npx prisma migrate status"]
               env:
                 - name: DATABASE_URL
                   valueFrom:
@@ -93,17 +97,20 @@ jobs:
                       key: DATABASE_URL
               resources:
                 limits:
-                  memory: "1.5Gi"
+                  memory: "2Gi"
                   cpu: "1"
                 requests:
-                  memory: "1Gi"
+                  memory: "1.5Gi"
                   cpu: "500m"
             restartPolicy: Never
           EOF
 
-          kubectl wait --for=condition=Succeeded -n ${{ inputs.K8S_NAMESPACE }} pod/prisma-migrate-${{ github.run_number }} --timeout=300s
-          kubectl logs -n ${{ inputs.K8S_NAMESPACE }} prisma-migrate-${{ github.run_number }}
-
+          # Aumentar timeout para 10 minutos (600s)
+          kubectl wait --for=condition=Succeeded -n ${{ inputs.K8S_NAMESPACE }} pod/prisma-migrate-${{ github.run_number }} --timeout=600s
+          
+          # Mostrar logs completos
+          kubectl logs -n ${{ inputs.K8S_NAMESPACE }} prisma-migrate-${{ github.run_number }} --tail=100
+          
           if [[ "$(kubectl get pod -n ${{ inputs.K8S_NAMESPACE }} prisma-migrate-${{ github.run_number }} -o jsonpath='{.status.phase}')" != "Succeeded" ]]; then
             echo "Migration failed"
             kubectl describe pod -n ${{ inputs.K8S_NAMESPACE }} prisma-migrate-${{ github.run_number }}
