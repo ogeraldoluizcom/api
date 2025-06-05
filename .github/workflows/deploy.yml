@@ -72,8 +72,7 @@ jobs:
       - name: Run Database Migrations
         timeout-minutes: 15
         run: |
-          # Cria um pod temporário dedicado apenas para migrações
-          cat <<EOF | kubectl apply -n ${{ inputs.K8S_NAMESPACE }} -f -
+          kubectl apply -n ${{ inputs.K8S_NAMESPACE }} -f - <<EOF
           apiVersion: v1
           kind: Pod
           metadata:
@@ -102,16 +101,13 @@ jobs:
             restartPolicy: Never
           EOF
 
-          # Aguarda conclusão
-          kubectl wait --for=condition=Ready -n ${{ inputs.K8S_NAMESPACE }} pod/prisma-migrate-${{ github.run_number }} --timeout=300s
-          kubectl logs -n ${{ inputs.K8S_NAMESPACE }} -f prisma-migrate-${{ github.run_number }}
+          kubectl wait --for=condition=Succeeded -n ${{ inputs.K8S_NAMESPACE }} pod/prisma-migrate-${{ github.run_number }} --timeout=300s
+          kubectl logs -n ${{ inputs.K8S_NAMESPACE }} prisma-migrate-${{ github.run_number }}
 
-          # Verifica status
-          if ! kubectl get pod -n ${{ inputs.K8S_NAMESPACE }} prisma-migrate-${{ github.run_number }} -o jsonpath='{.status.phase}' | grep -q "Succeeded"; then
+          if [[ "$(kubectl get pod -n ${{ inputs.K8S_NAMESPACE }} prisma-migrate-${{ github.run_number }} -o jsonpath='{.status.phase}')" != "Succeeded" ]]; then
             echo "Migration failed"
             kubectl describe pod -n ${{ inputs.K8S_NAMESPACE }} prisma-migrate-${{ github.run_number }}
             exit 1
           fi
 
-          # Limpeza
           kubectl delete pod -n ${{ inputs.K8S_NAMESPACE }} prisma-migrate-${{ github.run_number }}
