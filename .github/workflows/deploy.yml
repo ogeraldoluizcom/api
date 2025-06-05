@@ -69,24 +69,49 @@ jobs:
       #     POD_NAME=$(kubectl get pods -n ${{ inputs.K8S_NAMESPACE }} -l app=api -o jsonpath="{.items[0].metadata.name}")
       #     kubectl exec -n ${{ inputs.K8S_NAMESPACE }} $POD_NAME -- npx prisma migrate deploy
 
-      - name: Run Prisma Migrations
-        timeout-minutes: 10
+      - name: Run Database Migrations
+        timeout-minutes: 15
         run: |
-          # Seleciona especificamente o pod que está Running (não o com Error)
-          POD_NAME=$(kubectl get pods -n ${{ inputs.K8S_NAMESPACE }} -l app=api --field-selector=status.phase=Running -o jsonpath="{.items[0].metadata.name}")
-          echo "Pod selecionado para migração: $POD_NAME"
+          # Cria um pod temporário dedicado apenas para migrações
+          cat <<EOF | kubectl apply -n ${{ inputs.K8S_NAMESPACE }} -f -
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: prisma-migrate-${{ github.run_number }}
+            labels:
+              app: prisma-migrate
+          spec:
+            containers:
+            - name: migrator
+              image: geraldobl58/api:v${{ github.run_number }}
+              command: ["sh", "-c"]
+              args: ["NODE_OPTIONS='--max-old-space-size=1024' npx prisma migrate deploy && npx prisma migrate status"]
+              env:
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: db-credentials
+                      key: DATABASE_URL
+              resources:
+                limits:
+                  memory: "1.5Gi"
+                  cpu: "1"
+                requests:
+                  memory: "1Gi"
+                  cpu: "500m"
+            restartPolicy: Never
+          EOF
 
-          # Verifica se o container está realmente pronto
-          kubectl wait --namespace ${{ inputs.K8S_NAMESPACE }} \
-            pod/$POD_NAME \
-            --for=jsonpath='{.status.containerStatuses[?(@.name=="api")].ready}'=true \
-            --timeout=300s
+          # Aguarda conclusão
+          kubectl wait --for=condition=Ready -n ${{ inputs.K8S_NAMESPACE }} pod/prisma-migrate-${{ github.run_number }} --timeout=300s
+          kubectl logs -n ${{ inputs.K8S_NAMESPACE }} -f prisma-migrate-${{ github.run_number }}
 
-          # Executa migração com mais recursos
-          kubectl exec -n ${{ inputs.K8S_NAMESPACE }} $POD_NAME -c api -- \
-            sh -c "NODE_OPTIONS='--max-old-space-size=512' npx prisma migrate deploy"
+          # Verifica status
+          if ! kubectl get pod -n ${{ inputs.K8S_NAMESPACE }} prisma-migrate-${{ github.run_number }} -o jsonpath='{.status.phase}' | grep -q "Succeeded"; then
+            echo "Migration failed"
+            kubectl describe pod -n ${{ inputs.K8S_NAMESPACE }} prisma-migrate-${{ github.run_number }}
+            exit 1
+          fi
 
-          # Verificação pós-migração
-          echo "Status das migrações:"
-          kubectl exec -n ${{ inputs.K8S_NAMESPACE }} $POD_NAME -c api -- \
-            npx prisma migrate status
+          # Limpeza
+          kubectl delete pod -n ${{ inputs.K8S_NAMESPACE }} prisma-migrate-${{ github.run_number }}
