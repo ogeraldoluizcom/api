@@ -14,7 +14,7 @@ metadata:
 type: Opaque
 data:
   # postgresql://docker:docker@postgres-service:5432/api?schema=public em base64
-  DATABASE_URL: cG9zdGdyZXNxbDovL2RvY2tlcjpkb2NrZXJAcG9zdGdyZXNzLXNlcnZpY2U6NTQzMi9hcGk/c2NoZW1hPXB1YmxpYw==
+  DATABASE_URL: cG9zdGdyZXNxbDovL2RvY2tlcjpkb2NrZXJAcG9zdGdyZXMtc2VydmljZTo1NDMyL2FwaT9zY2hlbWE9cHVibGlj
 
 ---
 
@@ -44,7 +44,7 @@ metadata:
 spec:
   replicas: 1
   strategy:
-    type: Recreate  # Use esta estratégia em vez de RollingUpdate
+    type: Recreate
   selector:
     matchLabels:
       app: postgres
@@ -56,10 +56,13 @@ spec:
       initContainers:
         - name: prepare-data-dir
           image: busybox
-          command: ['sh', '-c', 'mkdir -p /var/lib/postgresql/data/pgdata && chown 999:999 /var/lib/postgresql/data/pgdata']
+          command:
+            - sh
+            - -c
+            - mkdir -p /var/lib/postgresql/data/pgdata && chown 999:999 /var/lib/postgresql/data/pgdata
           volumeMounts:
-          - name: postgres-data
-            mountPath: /var/lib/postgresql/data
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
       containers:
         - name: postgres
           image: postgres:14
@@ -94,18 +97,17 @@ spec:
                 - docker
             initialDelaySeconds: 20
             periodSeconds: 10
+          resources:  # ✅ corrigido: agora dentro do container
+            limits:
+              memory: "2Gi"
+              cpu: "1"
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
       volumes:
         - name: postgres-data
           persistentVolumeClaim:
             claimName: postgres-pvc
-    resources:
-      limits:
-        memory: "2Gi"
-        cpu: "1"
-      requests:
-        memory: "1Gi"
-        cpu: "500m"
-
 
 ---
 
