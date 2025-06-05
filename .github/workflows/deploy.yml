@@ -72,9 +72,37 @@ jobs:
       - name: Run Database Migrations
         timeout-minutes: 15
         run: |
-          # Testar conexão com o banco de dados primeiro
-          kubectl run postgres-test --rm -i --restart=Never --image=postgres:14 --env="PGPASSWORD=docker" --command -- \
-            psql -h postgres-service -U docker -d api -c "SELECT 1" || exit 1
+          # Wait for postgres service to be available
+          echo "Waiting for postgres service to be ready..."
+          for i in {1..30}; do
+            if kubectl get svc -n ${{ inputs.K8S_NAMESPACE }} postgres-service &>/dev/null; then
+              echo "Postgres service found"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "Postgres service not found after 30 attempts"
+              exit 1
+            fi
+            echo "Waiting for postgres service... attempt $i"
+            sleep 5
+          done
+
+          # Test database connection with retries
+          echo "Testing database connection..."
+          for i in {1..5}; do
+            if kubectl run postgres-test --rm -i --restart=Never --image=postgres:14 \
+              --env="PGPASSWORD=docker" \
+              --command -- psql -h postgres-service.${{ inputs.K8S_NAMESPACE }}.svc.cluster.local -U docker -d api -c "SELECT 1"; then
+              echo "Database connection successful"
+              break
+            fi
+            if [ $i -eq 5 ]; then
+              echo "Failed to connect to database after 5 attempts"
+              exit 1
+            fi
+            echo "Connection attempt $i failed, retrying in 5 seconds..."
+            sleep 5
+          done
           
           kubectl apply -n ${{ inputs.K8S_NAMESPACE }} -f - <<EOF
           apiVersion: v1
