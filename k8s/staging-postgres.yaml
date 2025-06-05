@@ -1,0 +1,121 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: staging
+
+---
+# Secret com a string de conexão do Postgres
+apiVersion: v1
+kind: Secret
+metadata:
+  name: db-credentials
+  namespace: staging
+type: Opaque
+data:
+  # postgresql://docker:docker@postgres-service:5432/api?schema=public em base64
+  DATABASE_URL: cG9zdGdyZXNxbDovL2RvY2tlcjpkb2NrZXJAcG9zdGdyZXMtc2VydmljZTo1NDMyL2FwaT9zY2hlbWE9cHVibGlj
+
+---
+# Persistent Volume Claim para o Postgres
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: staging
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+# Deployment do Postgres
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: staging
+  labels:
+    app: postgres
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      initContainers:
+        - name: prepare-data-dir
+          image: busybox
+          command:
+            - sh
+            - -c
+            - mkdir -p /var/lib/postgresql/data/pgdata && chown 999:999 /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+      containers:
+        - name: postgres
+          image: postgres:14
+          env:
+            - name: POSTGRES_DB
+              value: api
+            - name: POSTGRES_USER
+              value: docker
+            - name: POSTGRES_PASSWORD
+              value: docker
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - docker
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - docker
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources: # ✅ corrigido: agora dentro do container
+            limits:
+              memory: "2Gi"
+              cpu: "1"
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+      volumes:
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: postgres-pvc
+
+---
+# Service do Postgres
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: staging
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
