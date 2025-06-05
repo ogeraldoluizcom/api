@@ -4,7 +4,6 @@ metadata:
   name: development
 
 ---
-
 # Secret com a string de conexão do Postgres
 apiVersion: v1
 kind: Secret
@@ -17,7 +16,6 @@ data:
   DATABASE_URL: cG9zdGdyZXNxbDovL2RvY2tlcjpkb2NrZXJAcG9zdGdyZXMtc2VydmljZTo1NDMyL2FwaT9zY2hlbWE9cHVibGlj
 
 ---
-
 # Persistent Volume Claim para o Postgres
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -32,7 +30,6 @@ spec:
       storage: 1Gi
 
 ---
-
 # Deployment do Postgres
 apiVersion: apps/v1
 kind: Deployment
@@ -97,7 +94,7 @@ spec:
                 - docker
             initialDelaySeconds: 20
             periodSeconds: 10
-          resources:  # ✅ corrigido: agora dentro do container
+          resources: # ✅ corrigido: agora dentro do container
             limits:
               memory: "2Gi"
               cpu: "1"
@@ -110,7 +107,6 @@ spec:
             claimName: postgres-pvc
 
 ---
-
 # Service do Postgres
 apiVersion: v1
 kind: Service
