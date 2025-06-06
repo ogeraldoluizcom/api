@@ -13,7 +13,12 @@ export class CasesService {
   ) {}
 
   async create(createCaseDto: CreateCaseDto) {
-    return this.repository.create(createCaseDto);
+    const { cover = '', gallery = [], ...rest } = createCaseDto as any;
+    return this.repository.create({
+      ...rest,
+      cover,
+      gallery,
+    });
   }
 
   async findAll() {
@@ -25,7 +30,13 @@ export class CasesService {
   }
 
   async update(id: string, updateCaseDto: UpdateCaseDto) {
-    return this.repository.update(id, updateCaseDto);
+    const { cover = '', gallery = [], ...rest } = updateCaseDto as any;
+
+    return this.repository.update(id, {
+      ...rest,
+      cover,
+      gallery,
+    });
   }
 
   async remove(id: string) {

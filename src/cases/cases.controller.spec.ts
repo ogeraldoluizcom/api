@@ -3,9 +3,9 @@ import { CasesController } from './cases.controller';
 import { CasesService } from './cases.service';
 import { CreateCaseDto } from './dto/create-case.dto';
 import { UpdateCaseDto } from './dto/update-case.dto';
+import { UploadService } from '../upload/upload.service';
 
 class MockCasesRepository {}
-class MockPrismaService {}
 
 describe('CasesController', () => {
   let controller: CasesController;
@@ -26,14 +26,20 @@ describe('CasesController', () => {
   };
 
   beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
+    const moduleBuilder = Test.createTestingModule({
       controllers: [CasesController],
       providers: [
         { provide: CasesService, useValue: mockCasesService },
         { provide: 'CasesRepository', useClass: MockCasesRepository },
-        { provide: 'PrismaService', useClass: MockPrismaService },
+        {
+          provide: UploadService,
+          useValue: {
+            uploadFile: jest.fn().mockResolvedValue('mocked-upload-url'),
+          },
+        }, // Mock UploadService with correct token and uploadFile function
       ],
-    }).compile();
+    });
+    const module: TestingModule = await moduleBuilder.compile();
 
     controller = module.get<CasesController>(CasesController);
     service = module.get<CasesService>(CasesService);
@@ -44,12 +50,60 @@ describe('CasesController', () => {
   });
 
   it('should create a case', async () => {
+    // Mock Express.Multer.File objects for cover and gallery
+    const mockFile: Express.Multer.File = {
+      fieldname: 'cover',
+      originalname: 'cover.jpg',
+      encoding: '7bit',
+      mimetype: 'image/jpeg',
+      size: 123,
+      buffer: Buffer.from(''),
+      destination: '',
+      filename: 'cover.jpg',
+      path: '',
+      stream: undefined as any,
+    };
+    const mockGalleryFile1: Express.Multer.File = {
+      fieldname: 'gallery',
+      originalname: 'image1.jpg',
+      encoding: '7bit',
+      mimetype: 'image/jpeg',
+      size: 123,
+      buffer: Buffer.from(''),
+      destination: '',
+      filename: 'image1.jpg',
+      path: '',
+      stream: undefined as any,
+    };
+    const mockGalleryFile2: Express.Multer.File = {
+      fieldname: 'gallery',
+      originalname: 'image2.jpg',
+      encoding: '7bit',
+      mimetype: 'image/jpeg',
+      size: 123,
+      buffer: Buffer.from(''),
+      destination: '',
+      filename: 'image2.jpg',
+      path: '',
+      stream: undefined as any,
+    };
+
     const dto: CreateCaseDto = {
       title: 'Test Case',
       description: 'This is a test case',
+      techs: ['TypeScript', 'NestJS'], // Add required techs property
     };
-    const result = await controller.create(dto);
-    expect(service.create).toHaveBeenCalledWith(dto);
+    // Provide a mock user or context as the second argument
+    const files = {
+      cover: [mockFile],
+      gallery: [mockGalleryFile1, mockGalleryFile2],
+    };
+    const result = await controller.create(files, dto);
+    expect(service.create).toHaveBeenCalledWith({
+      ...dto,
+      cover: 'mocked-upload-url',
+      gallery: ['mocked-upload-url', 'mocked-upload-url'],
+    });
     expect(result).toEqual(mockCase);
   });
 
@@ -67,8 +121,41 @@ describe('CasesController', () => {
 
   it('should update a case', async () => {
     const dto: UpdateCaseDto = { title: 'Updated' };
-    const result = await controller.update('1', dto);
-    expect(service.update).toHaveBeenCalledWith('1', dto);
+    // Mock Express.Multer.File objects for cover and gallery (as in create test)
+    const mockFile: Express.Multer.File = {
+      fieldname: 'cover',
+      originalname: 'cover.jpg',
+      encoding: '7bit',
+      mimetype: 'image/jpeg',
+      size: 123,
+      buffer: Buffer.from(''),
+      destination: '',
+      filename: 'cover.jpg',
+      path: '',
+      stream: undefined as any,
+    };
+    const mockGalleryFile1: Express.Multer.File = {
+      fieldname: 'gallery',
+      originalname: 'image1.jpg',
+      encoding: '7bit',
+      mimetype: 'image/jpeg',
+      size: 123,
+      buffer: Buffer.from(''),
+      destination: '',
+      filename: 'image1.jpg',
+      path: '',
+      stream: undefined as any,
+    };
+    const files = {
+      cover: [mockFile],
+      gallery: [mockGalleryFile1],
+    };
+    const result = await controller.update('1', files, dto);
+    expect(service.update).toHaveBeenCalledWith('1', {
+      ...dto,
+      cover: 'mocked-upload-url',
+      gallery: ['mocked-upload-url'],
+    });
     expect(result).toEqual({ ...mockCase, title: 'Updated' });
   });
 
