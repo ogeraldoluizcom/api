@@ -44,12 +44,12 @@ spec:
                   name: db-credentials
                   key: DATABASE_URL
           resources:
-            limits:
-              cpu: 150m
-              memory: 96Mi
             requests:
-               cpu: 50m
-               memory: 48Mi
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 300m
+              memory: 512Mi
 
 ---
 apiVersion: networking.k8s.io/v1
@@ -78,3 +78,13 @@ spec:
   - hosts:
     - api.staging.ogeraldoluiz.com
     secretName: tls-cert-api-staging
+---
+# Secret com a string de conexão do Postgres
+apiVersion: v1
+kind: Secret
+metadata:
+  name: db-credentials
+  namespace: development
+type: Opaque
+data:
+  DATABASE_URL: cG9zdGdyZXNxbDovL2RvYWRtaW46QVZOU185ZTVNOElRcXFMUV9YdlB2WkVGQGRiLXBvc3RncmVzcWwtZnJhMS05NDk1Mi1kby11c2VyLTIxODE0NTM1LTAuZC5kYi5vbmRpZ2l0YWxvY2Vhbi5jb206MjUwNjAvZGVmYXVsdGRiP3NzbG1vZGU9cmVxdWlyZQ==
