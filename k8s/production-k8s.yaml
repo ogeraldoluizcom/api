@@ -79,13 +79,3 @@ spec:
   - hosts:
     - api.ogeraldoluiz.com
     secretName: tls-cert-api-production
----
-# Secret com a string de conexão do Postgres
-apiVersion: v1
-kind: Secret
-metadata:
-  name: db-credentials
-  namespace: development
-type: Opaque
-data:
-  DATABASE_URL: cG9zdGdyZXNxbDovL2RvYWRtaW46QVZOU185ZTVNOElRcXFMUV9YdlB2WkVGQGRiLXBvc3RncmVzcWwtZnJhMS05NDk1Mi1kby11c2VyLTIxODE0NTM1LTAuZC5kYi5vbmRpZ2l0YWxvY2Vhbi5jb206MjUwNjAvZGVmYXVsdGRiP3NzbG1vZGU9cmVxdWlyZQ==
