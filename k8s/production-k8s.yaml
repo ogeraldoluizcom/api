@@ -44,12 +44,12 @@ spec:
                   name: db-credentials
                   key: DATABASE_URL
           resources:
-            limits:
-              cpu: 150m
-              memory: 96Mi
             requests:
-               cpu: 50m
-               memory: 48Mi
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 300m
+              memory: 512Mi
 
 
 ---
