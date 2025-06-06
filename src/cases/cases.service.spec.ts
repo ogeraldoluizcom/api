@@ -46,6 +46,12 @@ describe('CasesService', () => {
     const dto: CreateCaseDto = {
       title: 'Test Case',
       description: 'This is a test case',
+      cover: 'http://example.com/cover.jpg',
+      gallery: [
+        'http://example.com/image1.jpg',
+        'http://example.com/image2.jpg',
+      ],
+      techs: ['JavaScript', 'NestJS'],
     };
     const result = await service.create(dto);
     expect(repository.create).toHaveBeenCalledWith(dto);
@@ -66,8 +72,9 @@ describe('CasesService', () => {
 
   it('should update a case', async () => {
     const dto: UpdateCaseDto = { title: 'Updated' };
+    const expectedDto = { title: 'Updated', cover: '', gallery: [] };
     const result = await service.update('1', dto);
-    expect(repository.update).toHaveBeenCalledWith('1', dto);
+    expect(repository.update).toHaveBeenCalledWith('1', expectedDto);
     expect(result).toEqual({ ...mockCase, title: 'Updated' });
   });
 
