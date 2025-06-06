@@ -3,6 +3,8 @@
 - [ ] Feature
 - [ ] Bug fix
 - [ ] Tests
+- [ ] Chore
+- [ ] Refactor
 - [ ] CI
 - [ ] Documentation
 
