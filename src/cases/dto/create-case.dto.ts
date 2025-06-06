@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsArray, IsNotEmpty, IsString } from 'class-validator';
 
 export class CreateCaseDto {
   @IsString()
@@ -8,4 +8,13 @@ export class CreateCaseDto {
   @IsString()
   @IsNotEmpty()
   description: string;
+
+  @IsString()
+  cover?: string;
+
+  @IsArray()
+  gallery?: string[];
+
+  @IsArray()
+  techs: string[];
 }
