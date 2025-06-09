@@ -35,28 +35,9 @@ spec:
           image: geraldobl58/api:latest
           ports:
             - containerPort: 3000
-          env:
-            - name: NODE_ENV
-              value: staging
-            - name: DATABASE_URL
-              valueFrom:
-                secretKeyRef:
-                  name: db-credentials
-                  key: DATABASE_URL
-            - name: DO_SPACES_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: spaces-credentials
-                  key: DO_SPACES_KEY
-            - name: DO_SPACES_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: spaces-credentials
-                  key: DO_SPACES_SECRET
-            - name: DO_SPACES_BUCKET
-              value: cases
-            - name: DO_SPACES_ENDPOINT
-              value: https://fra1.digitaloceanspaces.com
+          envFrom:
+            - secretRef:
+                name: app-env-secret
           resources:
             requests:
               cpu: 100m
