@@ -43,6 +43,20 @@ spec:
                 secretKeyRef:
                   name: db-credentials
                   key: DATABASE_URL
+            - name: DO_SPACES_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: spaces-credentials
+                  key: DO_SPACES_KEY
+            - name: DO_SPACES_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: spaces-credentials
+                  key: DO_SPACES_SECRET
+            - name: DO_SPACES_BUCKET
+              value: cases
+            - name: DO_SPACES_ENDPOINT
+              value: https://fra1.digitaloceanspaces.com
           resources:
             requests:
               cpu: 100m
