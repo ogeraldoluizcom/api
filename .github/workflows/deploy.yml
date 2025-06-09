@@ -54,6 +54,37 @@ jobs:
         run: |
           kubectl get namespace ${{ inputs.K8S_NAMESPACE }} || kubectl create namespace ${{ inputs.K8S_NAMESPACE }}
 
+      - name: Create Kubernetes Secret from GitHub Secrets
+        run: |
+          # Detecta o NODE_ENV com base no namespace
+          case "${{ inputs.K8S_NAMESPACE }}" in
+            production)
+              NODE_ENV=production
+              ;;
+            staging)
+              NODE_ENV=staging
+              ;;
+            development)
+              NODE_ENV=development
+              ;;
+            *)
+              echo "Erro: namespace '${{ inputs.K8S_NAMESPACE }}' não suportado."
+              exit 1
+              ;;
+          esac
+
+          # Cria ou atualiza o Secret com as variáveis do GitHub Secrets
+          kubectl create secret generic app-env-secret \
+            --namespace=${{ inputs.K8S_NAMESPACE }} \
+            --from-literal=NODE_ENV=$NODE_ENV \
+            --from-literal=DATABASE_URL='${{ secrets.DATABASE_URL }}' \
+            --from-literal=DO_SPACES_KEY='${{ secrets.DO_SPACES_KEY }}' \
+            --from-literal=DO_SPACES_SECRET='${{ secrets.DO_SPACES_SECRET }}' \
+            --from-literal=DO_SPACES_BUCKET='${{ secrets.DO_SPACES_BUCKET }}' \
+            --from-literal=DO_SPACES_ENDPOINT='${{ secrets.DO_SPACES_ENDPOINT }}' \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+
       # Deploy to Kubernetes
       - name: Deploy to Kubernetes
         uses: azure/k8s-deploy@v5
