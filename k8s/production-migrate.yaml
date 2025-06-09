@@ -8,7 +8,7 @@ spec:
     spec:
       containers:
         - name: migrate
-          image: geraldobl58/api:v{{GITHUB_RUN_NUMBER}}
+          image: geraldobl58/api:latest
           command: ["npx", "prisma", "migrate", "deploy"]
           env:
             - name: DATABASE_URL
