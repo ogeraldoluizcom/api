@@ -60,12 +60,15 @@ jobs:
           case "${{ inputs.K8S_NAMESPACE }}" in
             production)
               NODE_ENV=production
+              DATABASE_URL=${{ secrets.DATABASE_URL_PROD }}
               ;;
             staging)
               NODE_ENV=staging
+              DATABASE_URL=${{ secrets.DATABASE_URL_STAGING }}
               ;;
             development)
               NODE_ENV=development
+              DATABASE_URL=${{ secrets.DATABASE_URL_DEV }}
               ;;
             *)
               echo "Erro: namespace '${{ inputs.K8S_NAMESPACE }}' não suportado."
@@ -77,13 +80,12 @@ jobs:
           kubectl create secret generic app-env-secret \
             --namespace=${{ inputs.K8S_NAMESPACE }} \
             --from-literal=NODE_ENV=$NODE_ENV \
-            --from-literal=DATABASE_URL='${{ secrets.DATABASE_URL }}' \
+            --from-literal=DATABASE_URL="$DATABASE_URL" \
             --from-literal=DO_SPACES_KEY='${{ secrets.DO_SPACES_KEY }}' \
             --from-literal=DO_SPACES_SECRET='${{ secrets.DO_SPACES_SECRET }}' \
             --from-literal=DO_SPACES_BUCKET='${{ secrets.DO_SPACES_BUCKET }}' \
             --from-literal=DO_SPACES_ENDPOINT='${{ secrets.DO_SPACES_ENDPOINT }}' \
             --dry-run=client -o yaml | kubectl apply -f -
-
 
       # Deploy to Kubernetes
       - name: Deploy to Kubernetes
@@ -94,3 +96,19 @@ jobs:
             k8s/${{ inputs.environment-name }}-k8s.yaml
 
           images: geraldobl58/api:v${{ github.run_number }}
+
+      # Run Prisma Migrate Job
+      - name: Run Prisma Migrate Job
+        run: |
+          kubectl delete job prisma-migrate --namespace=${{ inputs.K8S_NAMESPACE }} --ignore-not-found
+          kubectl apply -f k8s/${{ inputs.environment-name }}-migrate.yaml
+
+          echo "Aguardando execução do Job de migrate..."
+          kubectl wait --for=condition=complete job/prisma-migrate --timeout=90s -n ${{ inputs.K8S_NAMESPACE }}
+
+      # Check if the Prisma Migrate Job was successful
+      - name: Get Logs from Failed Prisma Migrate Job
+        if: failure()
+        run: |
+          echo "Logs do Job:"
+          kubectl logs job/prisma-migrate -n ${{ inputs.K8S_NAMESPACE }} || true
