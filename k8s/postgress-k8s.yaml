@@ -14,7 +14,7 @@ spec:
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: db-credentials
+                  name: app-env-secret
                   key: DATABASE_URL
           resources:
             requests:
@@ -24,6 +24,7 @@ spec:
               cpu: 300m
               memory: 512Mi
       restartPolicy: Never
+
 ---
 apiVersion: batch/v1
 kind: Job
@@ -41,7 +42,7 @@ spec:
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: db-credentials
+                  name: app-env-secret
                   key: DATABASE_URL
           resources:
             requests:
@@ -51,6 +52,7 @@ spec:
               cpu: 300m
               memory: 512Mi
       restartPolicy: Never
+
 ---
 apiVersion: batch/v1
 kind: Job
@@ -68,7 +70,7 @@ spec:
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: db-credentials
+                  name: app-env-secret
                   key: DATABASE_URL
           resources:
             requests:
