@@ -100,12 +100,8 @@ jobs:
       # Run Prisma Migrate Job
       - name: Run Prisma Migrate Job
         run: |
-          echo "Deletando Job anterior (se existir)..."
-          kubectl delete job prisma-migrate -n ${{ inputs.K8S_NAMESPACE }} --ignore-not-found --wait=true || true
-
-          echo "Aplicando novo Job com imagem correta..."
-          export IMAGE_TAG=geraldobl58/api:v${{ github.run_number }}
-          envsubst < k8s/${{ inputs.environment-name }}-migrate.yaml | kubectl apply -f -
+          kubectl delete job prisma-migrate --namespace=${{ inputs.K8S_NAMESPACE }} --ignore-not-found
+          kubectl apply -f k8s/${{ inputs.environment-name }}-migrate.yaml
 
           echo "Aguardando execução do Job de migrate..."
           kubectl wait --for=condition=complete job/prisma-migrate --timeout=90s -n ${{ inputs.K8S_NAMESPACE }}
