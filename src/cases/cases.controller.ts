@@ -10,12 +10,15 @@ import {
   UseInterceptors,
   UploadedFiles,
   Put,
+  UseGuards,
 } from '@nestjs/common';
+import { plainToInstance } from 'class-transformer';
+
 import { CasesService } from './cases.service';
 import { CreateCaseDto } from './dto/create-case.dto';
 import { UpdateCaseDto } from './dto/update-case.dto';
 import { UploadService } from '../upload/upload.service';
-import { plainToInstance } from 'class-transformer';
+import { JwtAuthGuard } from '../auth/auth.guard';
 
 @Controller('cases')
 export class CasesController {
@@ -25,6 +28,7 @@ export class CasesController {
   ) {}
 
   @Post()
+  @UseGuards(JwtAuthGuard)
   @UseInterceptors(
     FileFieldsInterceptor([
       { name: 'cover', maxCount: 1 },
@@ -59,16 +63,19 @@ export class CasesController {
   }
 
   @Get()
+  @UseGuards(JwtAuthGuard)
   async findAll() {
     return this.casesService.findAll();
   }
 
   @Get(':id')
+  @UseGuards(JwtAuthGuard)
   async findOne(@Param('id') id: string) {
     return this.casesService.findOne(id);
   }
 
   @Put(':id')
+  @UseGuards(JwtAuthGuard)
   @UseInterceptors(
     FileFieldsInterceptor([
       { name: 'cover', maxCount: 1 },
@@ -104,6 +111,7 @@ export class CasesController {
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard)
   async remove(@Param('id') id: string) {
     return this.casesService.remove(id);
   }
