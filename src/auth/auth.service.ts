@@ -1,86 +1,67 @@
-import { JwtService } from '@nestjs/jwt';
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
-
+import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { UserEntity } from '../users/entities/user.entity';
-
 import { LoginUserDto } from './dto/login-user.dto';
 import { RegisterUserDto } from './dto/register-user.dto';
+import { CreateUserDto } from './dto/create-user.dto';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly prismaService: PrismaService,
-    private readonly jwtService: JwtService,
+    private readonly prisma: PrismaService,
+    private readonly jwt: JwtService,
     private readonly usersService: UsersService,
   ) {}
 
-  async login(loginUserDto: LoginUserDto): Promise<{ token: string }> {
-    const { email, password } = loginUserDto;
-
+  async login({
+    email,
+    password,
+  }: LoginUserDto): Promise<{ token: string; name: string }> {
     const user = await this.findUserByEmail(email);
-
-    await this.verifyPassword(password, user.password);
-
-    return this.generateToken(user.email, user.name);
+    await this.ensureValidPassword(password, user.password);
+    return this.createToken(user.email, user.name);
   }
 
-  async register(registerUserDto: RegisterUserDto): Promise<{ token: string }> {
-    const existingUser = await this.prismaService.user.findUnique({
-      where: { email: registerUserDto.email },
-    });
+  async register(
+    dto: RegisterUserDto,
+  ): Promise<{ token: string; name: string }> {
+    await this.ensureEmailNotExists(dto.email);
 
-    if (existingUser) {
-      throw new HttpException(
-        {
-          statusCode: HttpStatus.CONFLICT,
-          message: 'E-mail already exists',
-        },
-        HttpStatus.CONFLICT,
-      );
-    }
+    const hashedPassword = await this.hashPassword(dto.password);
+    const newUser = this.buildUserEntity(dto, hashedPassword);
+    const createdUser = await this.usersService.create(newUser);
 
-    const hashedPassword = await this.hashPassword(registerUserDto.password);
-    const newUser = this.createUserEntity(registerUserDto, hashedPassword);
-
-    const user = await this.usersService.create(newUser);
-
-    return this.generateToken(user.email, user.name);
+    return this.createToken(createdUser.email, createdUser.name);
   }
 
   private async findUserByEmail(email: string): Promise<UserEntity> {
-    const user = await this.prismaService.user.findUnique({ where: { email } });
+    const user = await this.prisma.user.findUnique({ where: { email } });
 
     if (!user) {
-      throw new HttpException(
-        {
-          statusCode: HttpStatus.NOT_FOUND,
-          message: 'User not found',
-        },
-        HttpStatus.NOT_FOUND,
-      );
+      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
     }
 
     return user;
   }
 
-  private async verifyPassword(
-    password: string,
-    hashedPassword: string,
-  ): Promise<void> {
-    const isPasswordValid = await bcrypt.compare(password, hashedPassword);
-
-    if (!isPasswordValid) {
+  private async ensureValidPassword(plain: string, hashed: string) {
+    const isValid = await bcrypt.compare(plain, hashed);
+    if (!isValid) {
       throw new HttpException(
-        {
-          statusCode: HttpStatus.BAD_REQUEST,
-          message: 'Username or password is incorrect',
-        },
+        'Invalid email or password',
         HttpStatus.BAD_REQUEST,
       );
+    }
+  }
+
+  private async ensureEmailNotExists(email: string) {
+    const exists = await this.prisma.user.findUnique({ where: { email } });
+    if (exists) {
+      throw new HttpException('Email already in use', HttpStatus.CONFLICT);
     }
   }
 
@@ -88,25 +69,22 @@ export class AuthService {
     return bcrypt.hash(password, 10);
   }
 
-  private createUserEntity(
-    registerUserDto: RegisterUserDto,
+  private buildUserEntity(
+    dto: RegisterUserDto,
     hashedPassword: string,
-  ): UserEntity {
-    const user = new UserEntity();
-
-    user.email = registerUserDto.email;
-    user.password = hashedPassword;
-    user.name = registerUserDto.name;
-
-    return user;
+  ): CreateUserDto {
+    return {
+      email: dto.email,
+      name: dto.name,
+      password: hashedPassword,
+    };
   }
 
-  private generateToken(
+  private createToken(
     email: string,
     name: string,
   ): { token: string; name: string } {
-    const token = this.jwtService.sign({ email, name });
-
+    const token = this.jwt.sign({ email, name });
     return { token, name };
   }
 }
