@@ -1,19 +1,27 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { HttpStatus } from '@nestjs/common';
-
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { LoginUserDto } from './dto/login-user.dto';
+import { RegisterUserDto } from './dto/register-user.dto';
+import { Response } from 'express';
 
 describe('AuthController', () => {
   let controller: AuthController;
   let authService: AuthService;
 
-  beforeEach(async () => {
-    const mockAuthService = {
-      login: jest.fn(),
-      register: jest.fn(),
-    };
+  const mockAuthService = {
+    login: jest.fn(),
+    register: jest.fn(),
+  };
 
+  const mockResponse = () => {
+    const res: Partial<Response> = {};
+    res.cookie = jest.fn().mockReturnValue(res);
+    res.clearCookie = jest.fn().mockReturnValue(res);
+    return res as Response;
+  };
+
+  beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
       providers: [{ provide: AuthService, useValue: mockAuthService }],
@@ -23,42 +31,58 @@ describe('AuthController', () => {
     authService = module.get<AuthService>(AuthService);
   });
 
-  it('should be defined', () => {
-    expect(controller).toBeDefined();
+  afterEach(() => {
+    jest.clearAllMocks();
   });
 
-  it('should return login response', async () => {
-    const loginDto = { email: 'test@example.com', password: '123456' };
-    const loginResult = { token: 'token' };
-    jest.spyOn(authService, 'login').mockResolvedValue(loginResult);
+  it('should login and set cookie', async () => {
+    const dto: LoginUserDto = { email: 'test@test.com', password: '123456' };
+    const token = 'jwt-token';
+    mockAuthService.login.mockResolvedValue({ token });
 
-    const mockResponse: any = { cookie: jest.fn() };
-    const response = await controller.login(loginDto as any, mockResponse);
+    const res = mockResponse();
+    const result = await controller.login(dto, res);
 
-    expect(authService.login).toHaveBeenCalledWith(loginDto);
-    expect(response).toEqual({
-      statusCode: HttpStatus.OK,
-      message: 'Login is successfully',
-      data: loginResult,
+    expect(authService.login).toHaveBeenCalledWith(dto);
+    expect(res.cookie).toHaveBeenCalledWith(
+      'auth_token',
+      token,
+      expect.objectContaining({ httpOnly: true }),
+    );
+    expect(result).toEqual({
+      statusCode: 200,
+      message: 'Login successful',
+      data: { token },
     });
   });
 
-  it('should return register response', async () => {
-    const registerDto = {
-      email: 'test@example.com',
+  it('should logout and clear cookie', () => {
+    const res = mockResponse();
+    const result = controller.logout(res);
+
+    expect(res.clearCookie).toHaveBeenCalledWith('auth_token');
+    expect(result).toEqual({
+      statusCode: 200,
+      message: 'Logout successful',
+    });
+  });
+
+  it('should register a user', async () => {
+    const dto: RegisterUserDto = {
+      email: 'test@test.com',
       password: '123456',
       name: 'Test',
     };
-    const registerResult = { token: 'token' };
-    jest.spyOn(authService, 'register').mockResolvedValue(registerResult);
+    const user = { id: 1, ...dto };
+    mockAuthService.register.mockResolvedValue(user);
 
-    const response = await controller.register(registerDto as any);
+    const result = await controller.register(dto);
 
-    expect(authService.register).toHaveBeenCalledWith(registerDto);
-    expect(response).toEqual({
-      statusCode: HttpStatus.OK,
-      message: 'Login is successfully',
-      data: registerResult,
+    expect(authService.register).toHaveBeenCalledWith(dto);
+    expect(result).toEqual({
+      statusCode: 200,
+      message: 'Register successful',
+      data: user,
     });
   });
 });
