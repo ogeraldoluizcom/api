@@ -16,6 +16,7 @@ describe('AppController (e2e)', () => {
   let prisma: PrismaService;
 
   beforeAll(async () => {
+    process.env.JWT_SECRET = process.env.JWT_SECRET || 'supersecret';
     container = await new PostgreSqlContainer('postgres:14')
       .withDatabase('api')
       .withUsername('docker')
