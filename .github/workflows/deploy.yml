@@ -85,6 +85,7 @@ jobs:
             --from-literal=DO_SPACES_SECRET='${{ secrets.DO_SPACES_SECRET }}' \
             --from-literal=DO_SPACES_BUCKET='${{ secrets.DO_SPACES_BUCKET }}' \
             --from-literal=DO_SPACES_ENDPOINT='${{ secrets.DO_SPACES_ENDPOINT }}' \
+            --from-literal=JWT_SECRET='${{ secrets.JWT_SECRET }}' \
             --dry-run=client -o yaml | kubectl apply -f -
 
       # Deploy to Kubernetes
