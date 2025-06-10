@@ -11,42 +11,38 @@ export class AuthController {
 
   @Post('/login')
   async login(
-    @Body() loginUserDto: LoginUserDto,
+    @Body() loginDto: LoginUserDto,
     @Res({ passthrough: true }) res: Response,
-  ): Promise<any> {
-    const result = await this.authService.login(loginUserDto);
+  ) {
+    const result = await this.authService.login(loginDto);
 
-    res.cookie('auth_token', result.token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production', // Use secure cookies in production
-      sameSite: 'lax',
-      maxAge: 1000 * 60 * 60, // 1 hour
-    });
+    this.setAuthCookie(res, result.token);
 
-    return {
-      statusCode: HttpStatus.OK,
-      message: 'Login is successfully',
-      data: result,
-    };
+    return this.buildResponse(HttpStatus.OK, 'Login successful', result);
   }
 
   @Post('/logout')
-  async logout(@Res({ passthrough: true }) res: Response): Promise<any> {
+  logout(@Res({ passthrough: true }) res: Response) {
     res.clearCookie('auth_token');
-    return {
-      statusCode: HttpStatus.OK,
-      message: 'Logout is successfully',
-    };
+    return this.buildResponse(HttpStatus.OK, 'Logout successful');
   }
 
   @Post('/register')
-  async register(@Body() registerDto: RegisterUserDto): Promise<any> {
+  async register(@Body() registerDto: RegisterUserDto) {
     const result = await this.authService.register(registerDto);
+    return this.buildResponse(HttpStatus.OK, 'Register successful', result);
+  }
 
-    return {
-      statusCode: HttpStatus.OK,
-      message: 'Login is successfully',
-      data: result,
-    };
+  private setAuthCookie(res: Response, token: string) {
+    res.cookie('auth_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 1000 * 60 * 60, // 1 hour
+    });
+  }
+
+  private buildResponse(statusCode: number, message: string, data?: any) {
+    return { statusCode, message, data };
   }
 }
