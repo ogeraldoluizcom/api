@@ -39,6 +39,7 @@ export class AuthController {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 1000 * 60 * 60, // 1 hour
+      domain: '.ogeraldoluiz.com',
     });
   }
 
