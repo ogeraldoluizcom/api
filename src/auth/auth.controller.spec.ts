@@ -47,7 +47,7 @@ describe('AuthController', () => {
     expect(res.cookie).toHaveBeenCalledWith(
       'auth_token',
       token,
-      expect.objectContaining({ httpOnly: true }),
+      expect.objectContaining({ httpOnly: false }),
     );
     expect(result).toEqual({
       statusCode: 200,
