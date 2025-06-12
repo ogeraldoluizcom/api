@@ -36,9 +36,10 @@ export class AuthController {
   private setAuthCookie(res: Response, token: string) {
     res.cookie('auth_token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: process.env.NODE_ENV !== 'production',
+      sameSite: 'none',
       maxAge: 1000 * 60 * 60, // 1 hour
+      domain: '.ogeraldoluiz.com',
     });
   }
 
